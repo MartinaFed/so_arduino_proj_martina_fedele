@@ -3,13 +3,13 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <avr/io.h>   //contiene nomi i registri hardware (PORTB,DDRB...)
-
+#include "servo.h"
 
 // INIZIALIZZAZIONE DEL SERVO
 // al servo serve un impulso preciso ogni 20 ms, noi cerchiamo di dirgli di mandare un impulso di 1,5 ms sul pin 9 (Timer 1 conta piu di Timer 0 o 2)
 // imposta il Timer 1 (a 16 bit) in modalità 'Fast PWM' e genera un segnale a 50Hz richiesto ai servomotori
-void servo_init(void) {
-    DDRB |= (1 << PB1);  // configuro il pin 9 come uscita , su Maker uno il pin 9 corrisponde a PB1 ed è collegato al canale A del timer 1
+void servo_init(uint8_t pin_servo) {
+    DDRB |= pin_servo;  // configuro il pin_servo come uscita (su Maker uno il pin 9 corrisponde a PB1 ed è collegato al canale A del timer 1)
 
     //configurazione del Registro TCCR1A (Timer/Counter Control Register A)
     //COM1A1 imposta il comportamento del pin: in Fast PWM mette il pin a 1 all'inizio del ciclo e lo mette a 0 quando il contatore raggiunge la soglia OCR1A
