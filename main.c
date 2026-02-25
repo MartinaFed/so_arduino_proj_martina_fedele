@@ -95,9 +95,74 @@ void avviso_parcheggio_pieno(bool ostacolo_in, bool ostacolo_out, bool *avviso_s
 
 
 
+
+
+// Funzione per simulare l'ingresso e l'uscita da tastiera
+void gestisci_uart_manuale(void) {
+    // Controllo se è arrivato un carattere via interrupt
+    if (uart_available() > 0) {
+        unsigned char comando = uart_read();  //se c'è almeno un carattere, lo estraiamo dal buffer e lo salviamo 
+
+        // Simulo l'ingresso (comando 'i')
+        if (comando == 'i') {
+            //se ci sono posti liberi
+            if (posti_liberi > 0) {
+                posti_liberi--; // Scalo un posto
+                uart_print("Auto entrata ---\r\n");
+                
+                //apro e chiudo la sbarra
+                open_barrier();
+                led_on(led_verde);
+                led_off(led_rosso);
+                _delay_ms(2000); // Aspetto per simulare il passaggio
+                close_barrier();
+                led_on(led_rosso);
+                led_off(led_verde);
+
+                // stampo i posti aggiornati
+                char buffer[30];
+                sprintf(buffer, "Posti liberi: %d\r\n", posti_liberi);
+                uart_print(buffer);
+            } else {
+                uart_print("Parcheggio Pieno! Impossibile entrare ---\r\n");
+            }
+        } 
+        // Simulo uscita(comando 'u')
+        else if (comando == 'u') {
+            //se i posti liberi sono minori del massimo dei posti(se ci sta almeno un'auto dentro)
+            if (posti_liberi < MAX_POSTI) {
+                posti_liberi++; // Aggiungo un posto
+                uart_print("Auto uscita ---\r\n");
+
+                //apro e chiudo la sbarra
+                open_barrier();
+                led_on(led_verde);
+                led_off(led_rosso);
+                _delay_ms(1500); // Aspetto un po' per simulare il passaggio
+                close_barrier();
+                led_on(led_rosso);
+                led_off(led_verde);
+
+                // stampo i posti aggiornati
+                char buffer[30];
+                sprintf(buffer, "Posti liberi: %d\r\n", posti_liberi);
+                uart_print(buffer);
+            } else {
+                uart_print("Errore, il parcheggio e' gia' vuoto! ---\r\n");
+            }
+        }
+    }
+}
+
+
+
+
 int main(void){
     
     uart_init(9600); // inizializza la seriale a 9600 baud
+    uart_print("Sistema Parcheggio Avviato\n");
+    uart_print("Premi 'i' per simulare un ingresso, 'u' per un'uscita.\n");
+
     DDRB |= led_rosso | led_verde;  // inizializzo i led
     sensore_init(sensore_ingresso,sensore_uscita); // inizializzo i sensori
     servo_init(servo); // inizializzo il servo
@@ -114,6 +179,9 @@ int main(void){
     bool avviso_stampato = false;
 
     while(1){
+        //chiamo la gestione attraverso UART
+        gestisci_uart_manuale();
+        
         // leggo lo stato dei sensori
         bool ostacolo_in = rilevato_ostacolo(sensore_ingresso);
         bool ostacolo_out = rilevato_ostacolo(sensore_uscita);

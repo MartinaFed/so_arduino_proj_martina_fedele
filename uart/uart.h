@@ -5,5 +5,7 @@
 void uart_init(unsigned int baud);
 void uart_transmit(unsigned char data);
 void uart_print(const char* str);
+unsigned int uart_available(void);
+unsigned char uart_read(void);
 
 #endif
