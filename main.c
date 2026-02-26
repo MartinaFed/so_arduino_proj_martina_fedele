@@ -1,4 +1,6 @@
+
 #define F_CPU 16000000UL //definisco la frequenza di clock a 16 MHz
+
 #include <avr/io.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -10,8 +12,6 @@
 #include "servo/servo.h" //contiene le funzioni per gestire il servo
 #include "sensori/sensori.h" //contiene le funzioni per gestire i sensori
 #include "uart/uart.h" //contiene le funzioni per gestire la comunicazione seriale
-
-
 
 
 int posti_liberi = MAX_POSTI; //MAX_POSTI è definito in common.h e vale 5
@@ -67,6 +67,8 @@ void gestisci_transito(uint8_t pin_partenza, uint8_t pin_arrivo, int variazione_
 
 
 
+
+
 //Funzione per la stampa in caso di parcheggio pieno
 void avviso_parcheggio_pieno(bool ostacolo_in, bool ostacolo_out, bool *avviso_stampato) {
     // se c'è un auto in ingresso e non in uscita
@@ -93,6 +95,35 @@ void avviso_parcheggio_pieno(bool ostacolo_in, bool ostacolo_out, bool *avviso_s
     }
 }
 
+
+
+
+
+// Funzione per la stampa in caso di parcheggio vuoto
+void avviso_parcheggio_vuoto(bool ostacolo_in, bool ostacolo_out, bool *avviso_stampato) {
+    // se c'è un'auto in uscita ma il parcheggio è vuoto
+    if(!ostacolo_in && ostacolo_out){
+        if(*avviso_stampato == false){
+            uart_print("Errore: Il parcheggio e' gia' vuoto!\r\n"); // stampo l'errore
+            *avviso_stampato = true;
+        }
+    } 
+    // se non ci sono più macchine (l'auto in uscita ha fatto retromarcia e se n'è andata)
+    else if (!ostacolo_in && !ostacolo_out) {
+        if(*avviso_stampato == true){
+            // Ritardo per evitare 'sfarfallio' dei sensori
+            _delay_ms(500);
+            
+            // Rileggo i sensori per sicurezza
+            if(!rilevato_ostacolo(sensore_ingresso) && !rilevato_ostacolo(sensore_uscita)){
+                char buffer[30];
+                sprintf(buffer, "Posti liberi: %d\r\n", posti_liberi); // ristampo i posti
+                uart_print(buffer);
+                *avviso_stampato = false;
+            }
+        }
+    }
+}
 
 
 
@@ -125,6 +156,12 @@ void gestisci_uart_manuale(void) {
                 uart_print(buffer);
             } else {
                 uart_print("Parcheggio Pieno! Impossibile entrare ---\r\n");
+                
+                // stampa dei posti
+                _delay_ms(1500); 
+                char buffer[30];
+                sprintf(buffer, "Posti liberi: %d\r\n", posti_liberi);
+                uart_print(buffer);
             }
         } 
         // Simulo uscita(comando 'u')
@@ -149,10 +186,17 @@ void gestisci_uart_manuale(void) {
                 uart_print(buffer);
             } else {
                 uart_print("Errore, il parcheggio e' gia' vuoto! ---\r\n");
+                
+                // stampa dei posti
+                _delay_ms(1500); 
+                char buffer[30];
+                sprintf(buffer, "Posti liberi: %d\r\n", posti_liberi);
+                uart_print(buffer);
             }
         }
     }
 }
+
 
 
 
@@ -177,6 +221,7 @@ int main(void){
     uart_print(buffer_1);
 
     bool avviso_stampato = false;
+    bool avviso_vuoto_stampato = false; // Flag per l'avviso di parcheggio vuoto
 
     while(1){
         //chiamo la gestione attraverso UART
@@ -210,6 +255,7 @@ int main(void){
                 //ricontrollo dopo pausa per sicurezza
                 if(!rilevato_ostacolo(sensore_ingresso)){ 
                     gestisci_transito(sensore_uscita, sensore_ingresso, +1);  //funzione che gestisce il transito dell'auto
+                    avviso_stampato = false; 
                 }
             }
         }
@@ -220,6 +266,9 @@ int main(void){
             if(!ostacolo_in && !ostacolo_out){
                 led_on(led_rosso);
                 led_off(led_verde);
+                
+                // Resetta l'avviso di parcheggio vuoto se la macchina si è spostata
+                avviso_parcheggio_vuoto(ostacolo_in, ostacolo_out, &avviso_vuoto_stampato); 
             }
             //se ho un'auto in ingresso
             else if(ostacolo_in && !ostacolo_out){
@@ -228,6 +277,7 @@ int main(void){
                 // se dopo 300ms l'altro sensore è ancora libero, apriamo
                 if(!rilevato_ostacolo(sensore_uscita)){ 
                     gestisci_transito(sensore_ingresso, sensore_uscita, -1); //chiamo la funzione che gestisce il transito e decrementa il numero di posti
+                    avviso_vuoto_stampato = false; 
                 }
             }
             //se ho un'auto in uscita
@@ -239,11 +289,15 @@ int main(void){
                     // Se dopo 300ms l'altro sensore è libero, apro la sbarra
                     if(!rilevato_ostacolo(sensore_ingresso)){
                         gestisci_transito(sensore_uscita, sensore_ingresso, +1);  //chiamo la funzione che gestisce il transito e incrementa il numero di posti
+                        avviso_stampato = false; 
                     }
                 //se il parcheggio dentro è vuoto
                 } else {
                     led_on(led_rosso);
                     led_off(led_verde);
+                    
+                    // Richiama la funzione per gestire l'errore di parcheggio vuoto
+                    avviso_parcheggio_vuoto(ostacolo_in, ostacolo_out, &avviso_vuoto_stampato);
                 }
             }
         }
