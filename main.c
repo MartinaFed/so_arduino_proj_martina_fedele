@@ -163,7 +163,7 @@ int main(void){
     uart_print("Sistema Parcheggio Avviato\n");
     uart_print("Premi 'i' per simulare un ingresso, 'u' per un'uscita.\n");
 
-    DDRB |= led_rosso | led_verde;  // inizializzo i led
+    led_init(led_rosso,led_verde); // inizializzo i led
     sensore_init(sensore_ingresso,sensore_uscita); // inizializzo i sensori
     servo_init(servo); // inizializzo il servo
 

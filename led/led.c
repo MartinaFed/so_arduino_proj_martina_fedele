@@ -1,14 +1,15 @@
-//Funzioni per il controllo hardware dei led tramite i registri AVR
-
 #define F_CPU 16000000UL  //definisco la frequenza di clock della CPU (16MHz nel caso di Maker uno)
-#include <stdio.h>
 #include <stdint.h>
 #include <util/delay.h>   //contiene le funzioni per i ritardi
 #include <avr/io.h>   //contiene la definizione dei registri hardware (PORTB,DDRB...)
-#include <avr/interrupt.h>  //contiene le librerie per gestire gli interrupt 8le ISR e la funzione sei())
 #include "led.h"
 
-
+//funzione che inizializza i led
+void led_init(uint8_t led_1, uint8_t led_2){
+    // l'operatore or bit a bit(|) prende i due valori e crea un 'pacchetto' dove soltanto led_1 e led_2 sono accesi a 1
+    //DDRB (Data Direction Register B): registro hardware "interruttore" della Porta B. Decide la direzione del segnale: se un suo bit vale 0, il pin corrispondente è un Input , se vale 1, è un Output 
+    DDRB |= led_1 | led_2; //prendo lo stato attuale del registro DDRB e sovrappongo la maschera (forza a 1 solo i bit dei due LED, lasciando intatti tutti gli altri bit)
+}
 
 //funzione che accende un led 
 //accende un pin senza modificare lo stato degli altri  utilizzando l'operatore logico bit a bit OR che confronta i bit attuali di PORTB con la maschera m

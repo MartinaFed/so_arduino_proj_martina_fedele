@@ -4,8 +4,8 @@
 #include <avr/interrupt.h>
 
 
-#define RX_BUFFER_SIZE 64 //definisco dimensione massima del buffer (64 byte)
-volatile unsigned char buffer_salvataggio[RX_BUFFER_SIZE]; //array di dim RX_BUFFER_SIZE per salvare i caratteri ricevuti.
+#define BUFFER_SIZE 64 //definisco dimensione massima del buffer (64 byte)
+volatile unsigned char buffer_salvataggio[BUFFER_SIZE]; //array di dim RX_BUFFER_SIZE per salvare i caratteri ricevuti.
 volatile unsigned int head = 0; // l'indice che indica in quale "casella" l'ISR scriverà il carattere in arrivo
 volatile unsigned int r = 0; // indice dove il main legge(il più vecchio carattere non letto)
 
@@ -41,7 +41,7 @@ ISR(USART_RX_vect) {
     unsigned char data = UDR0;
     
     //Calcolo quale sarà il prossimo posto in cui scrivere.
-    unsigned int next_head = (head + 1) % RX_BUFFER_SIZE;  // il modulo (%): se head arriva a 63, (63 + 1) % 64 fa 0. Così l'indice ricomincia dall'inizio dell'array senza andare fuori dalla memoria.
+    unsigned int next_head = (head + 1) % BUFFER_SIZE;  // il modulo (%): se head arriva a 63, (63 + 1) % 64 fa 0. Così l'indice ricomincia dall'inizio dell'array senza andare fuori dalla memoria.
     
     // se il buffer non è pieno, salva il carattere
     if (next_head != r) {
@@ -59,7 +59,7 @@ unsigned int uart_available(void) {
     
     //Calcola la distanza tra la testa (dove scrive l'ISR) e la coda (dove leggiamo noi). Va sommato RX_BUFFER_SIZE prima di sottrarre 'r' per evitare risultati negativi in caso la testa sia ripartita da 0 e quindi numericamente minore della coda 
     // l'operatore modulo (%) toglie l'eccesso mantenendo il risultato nel range corretto.
-    return (RX_BUFFER_SIZE + head - r) % RX_BUFFER_SIZE;
+    return (BUFFER_SIZE + head - r) % BUFFER_SIZE;
 }
 
 
@@ -74,7 +74,7 @@ unsigned char uart_read(void) {
     unsigned char data = buffer_salvataggio[r]; // Legge il dato
     
     // sposto la "coda" in avanti di un passo (il modulo (%) fa sì che l'indice non superi mai la fine dell'array).
-    r = (r + 1) % RX_BUFFER_SIZE;
+    r = (r + 1) % BUFFER_SIZE;
     
     //restituisco il carattere
     return data;
