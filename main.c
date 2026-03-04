@@ -1,4 +1,3 @@
-
 #define F_CPU 16000000UL //definisco la frequenza di clock a 16 MHz
 
 #include <avr/io.h>
@@ -12,8 +11,10 @@
 #include "servo/servo.h" //contiene le funzioni per gestire il servo
 #include "sensori/sensori.h" //contiene le funzioni per gestire i sensori
 #include "uart/uart.h" //contiene le funzioni per gestire la comunicazione seriale
+#include "tastiera/tastiera.h" //contiene le funzioni per gestire l'inserimento da tastiera
 
 
+const uint8_t codice_segreto[3] = {1, 2, 3};  //password di ingresso
 int posti_liberi = MAX_POSTI; //MAX_POSTI è definito in common.h e vale 5
 
 
@@ -23,7 +24,7 @@ void gestisci_transito(uint8_t pin_partenza, uint8_t pin_arrivo, int variazione_
     open_barrier();  
     led_on(led_verde);
     led_off(led_rosso);
-    
+
     int timer = 0;  //cronometro di sicurezza
 
     // aspetto che l'auto arrivi al secondo sensore
@@ -58,12 +59,20 @@ void gestisci_transito(uint8_t pin_partenza, uint8_t pin_arrivo, int variazione_
         sprintf(buffer, "Posti liberi: %d\r\n", posti_liberi);
         uart_print(buffer);
     }
-
+    else {
+        //auto fa retromarcia dopo aver scritto pin corretto
+        uart_print("Transito annullato (retromarcia).\r\n");
+        char buffer[30];
+        sprintf(buffer, "Posti liberi: %d\r\n", posti_liberi);
+        uart_print(buffer);
+    }
     //Chiusura rapida (se ci sta un auto accodata dietro gli viene chiusa la sbarra)
     close_barrier();
     led_on(led_rosso);
     led_off(led_verde);
 }
+
+
 
 
 
@@ -124,6 +133,7 @@ void avviso_parcheggio_vuoto(bool ostacolo_in, bool ostacolo_out, bool *avviso_s
         }
     }
 }
+
 
 
 
@@ -198,18 +208,19 @@ void gestisci_uart_manuale(void) {
 }
 
 
+ 
 
-
+       
 
 int main(void){
-    
-    uart_init(9600); // inizializza la seriale a 9600 baud
-    uart_print("Sistema Parcheggio Avviato\n");
-    uart_print("Premi 'i' per simulare un ingresso, 'u' per un'uscita.\n");
 
+    uart_init(9600); // inizializza la seriale a 9600 baud
+    tastiera_init();//inizializza la tastiera
     led_init(led_rosso,led_verde); // inizializzo i led
     sensore_init(sensore_ingresso,sensore_uscita); // inizializzo i sensori
     servo_init(servo); // inizializzo il servo
+    uart_print("Sistema Parcheggio Avviato\n");
+    uart_print("Premi 'i' per simulare un ingresso, 'u' per un'uscita.\n");
 
     // stato iniziale
     led_on(led_rosso);
@@ -221,11 +232,10 @@ int main(void){
     uart_print(buffer_1);
 
     bool avviso_stampato = false;
-    bool avviso_vuoto_stampato = false; // Flag per l'avviso di parcheggio vuoto
+    bool avviso_vuoto_stampato = false; // Flag per l'avviso di parcheggio vuoto 
 
     while(1){
-        //chiamo la gestione attraverso UART
-        gestisci_uart_manuale();
+        gestisci_uart_manuale();  //chiamo la gestione attraverso UART
         
         // leggo lo stato dei sensori
         bool ostacolo_in = rilevato_ostacolo(sensore_ingresso);
@@ -246,8 +256,7 @@ int main(void){
         else if(posti_liberi <= 0){
             led_on(led_rosso);
             led_off(led_verde);
-            
-           avviso_parcheggio_pieno(ostacolo_in, ostacolo_out, &avviso_stampato); // stampo l'avviso di parcheggio pieno
+            avviso_parcheggio_pieno(ostacolo_in, ostacolo_out, &avviso_stampato); // stampo l'avviso di parcheggio pieno
             
             //permetto solo l'uscita
             if(!ostacolo_in && ostacolo_out){
@@ -266,20 +275,89 @@ int main(void){
             if(!ostacolo_in && !ostacolo_out){
                 led_on(led_rosso);
                 led_off(led_verde);
-                
-                // Resetta l'avviso di parcheggio vuoto se la macchina si è spostata
-                avviso_parcheggio_vuoto(ostacolo_in, ostacolo_out, &avviso_vuoto_stampato); 
+                avviso_parcheggio_vuoto(ostacolo_in, ostacolo_out, &avviso_vuoto_stampato); // Resetta l'avviso di parcheggio vuoto se la macchina si è spostata
             }
-            //se ho un'auto in ingresso
+            
+            //se ho ostacolo in entrata
             else if(ostacolo_in && !ostacolo_out){
-                // pausa prima di aprire
-                _delay_ms(300);
-                // se dopo 300ms l'altro sensore è ancora libero, apriamo
-                if(!rilevato_ostacolo(sensore_uscita)){ 
-                    gestisci_transito(sensore_ingresso, sensore_uscita, -1); //chiamo la funzione che gestisce il transito e decrementa il numero di posti
-                    avviso_vuoto_stampato = false; 
+                _delay_ms(200);
+                if(rilevato_ostacolo(sensore_ingresso)) {
+                    uart_print("Auto al varco. Inserire codice di 3 cifre:\r\n");
+                    uint8_t pin_inserito[3];
+                    uint8_t indice_pin = 0;
+                    
+                    //aspetto finché non riceve 3 tasti
+                    while(indice_pin < 3) {
+                        
+                        // se l'auto fa retromarcia
+                        if(!rilevato_ostacolo(sensore_ingresso)){
+                            _delay_ms(500); 
+                            if(!rilevato_ostacolo(sensore_ingresso)){
+                                uart_print("Auto andata via. Inserimento annullato.\r\n");
+                                
+                                // ristampo i posti liberi
+                                char buf_posti[30];
+                                sprintf(buf_posti, "Posti liberi: %d\r\n", posti_liberi);
+                                uart_print(buf_posti);
+                                break;
+                            }
+                        }
+
+                        // Leggiamo la tastiera 
+                        KeyEvent events[MAX_EVENTS];
+                        uint8_t num_events = keyScan(events);
+                        
+                        for (uint8_t k = 0; k < num_events; ++k){
+                            if(events[k].status == 1) { 
+                                pin_inserito[indice_pin] = events[k].key;
+                                indice_pin++;
+                                uart_print("*"); //asterisco per pin
+                            }
+                        }
+                    } 
+                    
+                    
+                    // Se ha digitato tre cifre giuste
+                    if(indice_pin == 3){
+                        uart_print("\r\n"); 
+                        char buf_codice[50];
+                        sprintf(buf_codice, "codice inserito:    %d%d%d\r\n", pin_inserito[0], pin_inserito[1], pin_inserito[2]);
+                        uart_print(buf_codice);
+                        
+                        // controllo il codice
+                        if(pin_inserito[0] == codice_segreto[0] &&
+                           pin_inserito[1] == codice_segreto[1] &&
+                           pin_inserito[2] == codice_segreto[2]) {
+                            
+                            uart_print("codice esatto\r\n");
+                            
+                            // se non ci sono ostacoli in uscita, apriamo la sbarra
+                            if(!rilevato_ostacolo(sensore_uscita)){ 
+                                gestisci_transito(sensore_ingresso, sensore_uscita, -1);
+                                avviso_vuoto_stampato = false; 
+                            }
+                        } 
+                        else {
+                            uart_print("codice errato\r\n");
+                            
+                            // allarme PIN errato: triplo lampeggio rosso rapido
+                            led_off(led_verde);
+                            led_off(led_rosso);
+                            _delay_ms(200); led_on(led_rosso);
+                            _delay_ms(200); led_off(led_rosso);
+                            _delay_ms(200); led_on(led_rosso);
+                            
+                            _delay_ms(1500); 
+                            
+                            char buf_posti[30];
+                            sprintf(buf_posti, "Posti liberi: %d\r\n", posti_liberi);
+                            uart_print(buf_posti);
+                        }
+                    }
                 }
             }
+            
+
             //se ho un'auto in uscita
             else if(!ostacolo_in && ostacolo_out){
                 //se ci sta almeno un'auto dentro

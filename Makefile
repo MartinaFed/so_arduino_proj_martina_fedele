@@ -6,7 +6,7 @@ PROGRAMMER = arduino  #linguaggio che il chip capisce per ricevere dati
 F_CPU = 16000000UL  #dice al codice che il chip viaggia a 16 MH
 
 
-SRCS = $(TARGET).c led/led.c servo/servo.c sensori/sensori.c uart/uart.c
+SRCS = $(TARGET).c led/led.c servo/servo.c sensori/sensori.c uart/uart.c tastiera/tastiera.c
 
 #Quando scrivi make senza argomenti il computer carica questa regola: trasforma il file c in un file eseguibile, 
 #avr-gcc chiama il compilatore
